@@ -1,0 +1,96 @@
+services:
+  nginx:
+    build: ./requirements/nginx/.
+    container_name: nginx
+    ports:
+      - "443:443"
+    volumes:
+      - web:/var/www/html
+    networks:
+      - docker-network
+    depends_on:
+      - wordpress
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
+    restart: on-failure
+
+  wordpress:
+    build: ./requirements/wordpress/.
+    container_name: wordpress
+    volumes:
+      - web:/var/www/html
+    networks:
+      - docker-network
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      DB_NAME: ${DB_NAME}
+      DOMAIN_NAME: ${DOMAIN_NAME}
+    secrets:
+      - wp_admin_password
+      - wp_admin_usr
+      - db_username
+      - db_password
+      - wp_username
+      - wp_user_password
+
+  mariadb:
+    build: ./requirements/mariadb/.
+    container_name: mariadb
+    volumes:
+      - db:/var/lib/mysql
+    networks:
+      - docker-network
+    restart: on-failure
+    environment:
+      DB_USERNAME: /run/secrets/db_username
+      DB_PASSWORD: /run/secrets/db_password
+      DB_NAME: ${DB_NAME}
+    secrets:
+      - db_username
+      - db_password
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "./healthcheck.sh"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+networks:
+  docker-network:
+    driver: bridge
+
+volumes:
+  db:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${HOME}/data/db
+  web:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${HOME}/data/web
+
+secrets:
+  db_username:
+    file: ./secrets/db_username.txt
+
+  db_password:
+    file: ./secrets/db_password.txt
+
+  wp_admin_password:
+    file: ./secrets/wp_admin_password.txt
+
+  wp_admin_usr:
+    file: ./secrets/wp_admin_usr.txt
+
+  wp_username:
+    file: ./secrets/wp_username.txt
+
+  wp_user_password:
+    file: ./secrets/wp_user_password.txt
